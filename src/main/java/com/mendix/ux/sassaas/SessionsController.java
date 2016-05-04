@@ -40,7 +40,6 @@ public class SessionsController implements SessionsApi {
     private final String OUTPUT_ZIP = "theme.zip";
     private final String METADATA = "metadata.json";
     private final String METADATA_LOGO = "logo";
-    private final String DEFAULT_THEME = "mendix-ui-theme-silverlinings";
     private final String METADATA_THEME = "theme";
 
     @Value(value = "${basethemeurl:http://localhost:8000}")
@@ -50,17 +49,16 @@ public class SessionsController implements SessionsApi {
     @RequestMapping(value="", method = RequestMethod.PUT)
     public ResultResponse createSession(@PathVariable("sessionId") String sessionId, @RequestParam(value = "theme", required = false) String theme) throws Exception {
         validateSessionId(sessionId);
-        validateSessionId(theme);
-        if (theme == null)
-            theme = DEFAULT_THEME;
-
         File sessionDir = getSessionDir(sessionId);
         JSONObject metadata = loadMetadata(sessionDir);
-        metadata.put(METADATA_THEME, theme);
+        if (theme != null) {
+            validateSessionId(theme);
+            metadata.put(METADATA_THEME, theme);
+        }
         saveMetadata(metadata, sessionDir);
 
         ResultResponse result = new ResultResponse();
-        result.setMessage(theme);
+        result.setMessage("Ready");
         return result;
     }
 
@@ -68,7 +66,7 @@ public class SessionsController implements SessionsApi {
     @RequestMapping(value="/css", method = RequestMethod.GET)
     public File getCSSOutput(@PathVariable("sessionId") String sessionId) throws Exception {
         validateSessionId(sessionId);
-        File inputFile = writeInputStreamToFile(sessionId, getClass().getResourceAsStream("/default-theme.zip"));
+        File inputFile = getThemeFile(sessionId);
         File sessionDir = getSessionDir(sessionId);
         File variables = new File(sessionDir, VARIABLE_FILENAME);
         File workspace = new File(sessionDir, WORKSPACE_NAME);
@@ -123,7 +121,7 @@ public class SessionsController implements SessionsApi {
     @RequestMapping(value="/logo", method = RequestMethod.POST)
     public ResultResponse uploadLogo(@PathVariable("sessionId") String sessionId, @RequestPart("file") MultipartFile fileDetail) throws Exception {
         validateSessionId(sessionId);
-        File inputFile = writeInputStreamToFile(sessionId, getClass().getResourceAsStream("/default-theme.zip"));
+        File inputFile = getThemeFile(sessionId);
         String extension = FilenameUtils.getExtension(fileDetail.getOriginalFilename());
         String targetFilename = String.format("logo.%s", extension);
         File sessionDir = getSessionDir(sessionId);
@@ -181,7 +179,7 @@ public class SessionsController implements SessionsApi {
     @RequestMapping(value="/zip", method = RequestMethod.GET)
     public File getZipOutput(@PathVariable("sessionId") String sessionId) throws Exception {
         validateSessionId(sessionId);
-        File inputFile = writeInputStreamToFile(sessionId, getClass().getResourceAsStream("/default-theme.zip"));
+        File inputFile = getThemeFile(sessionId);
         File sessionDir = getSessionDir(sessionId);
         File variables = new File(sessionDir, VARIABLE_FILENAME);
         File workspace = new File(sessionDir, WORKSPACE_NAME);
@@ -241,15 +239,17 @@ public class SessionsController implements SessionsApi {
         return themeFile;
     }
 
-    private File writeInputStreamToFile(String sessionId, InputStream inputStream) throws IOException {
+    private File getThemeFile(String sessionId) throws IOException {
+        InputStream inputStream;
         File sessionDir = getSessionDir(sessionId);
         JSONObject metadata = loadMetadata(sessionDir);
         if (metadata.has(METADATA_THEME)) {
             String theme = metadata.getString(METADATA_THEME);
             logger.info("Using non internal theme: " + theme);
             File themeFile = downloadTheme(theme);
-            IOUtils.closeQuietly(inputStream); // re-open new one
             inputStream = new FileInputStream(themeFile);
+        } else {
+            inputStream = getClass().getResourceAsStream("/default-theme.zip");
         }
 
         File outfile = new File(getSessionDir(sessionId), "input.zip");
