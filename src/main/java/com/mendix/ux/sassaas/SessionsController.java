@@ -23,6 +23,7 @@ import java.net.URL;
 import java.util.List;
 
 @RestController
+@CrossOrigin
 @RequestMapping("/v1/sessions/{sessionId}")
 public class SessionsController implements SessionsApi {
 
